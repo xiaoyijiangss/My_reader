@@ -18,9 +18,6 @@ class PlayerService : MediaSessionService() {
 
     override fun onCreate() {
         super.onCreate()
-        val player = com.myreader.MyReaderApp.instance.database.let {
-            // Player由ViewModel管理，这里Service只维护MediaSession
-        }
         setupMediaSession()
     }
 
@@ -33,7 +30,14 @@ class PlayerService : MediaSessionService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        mediaSession = MediaSession.Builder(this, AudioPlayerHolder.player)
+        val player = if (AudioPlayerHolder::player.isInitialized) {
+            AudioPlayerHolder.player
+        } else {
+            AudioPlayerHolder.player = AudioPlayer(this)
+            AudioPlayerHolder.player
+        }
+
+        mediaSession = MediaSession.Builder(this, player)
             .setSessionActivity(pendingIntent)
             .build()
     }
