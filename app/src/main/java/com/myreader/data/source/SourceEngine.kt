@@ -136,7 +136,7 @@ class SourceEngine {
                 val doc = fetchDoc(chapter.url, rule.charset)
                 if (rule.audioUrlRule.isNotBlank()) {
                     val el = doc.select(rule.audioUrlRule).first()
-                    el?.attr("abs:src").ifBlank {
+                    (el?.attr("abs:src") ?: "").ifBlank {
                         el.attr(rule.audioUrlAttr)
                     }?.let { fixUrl(it, rule.baseUrl) }
                 } else {

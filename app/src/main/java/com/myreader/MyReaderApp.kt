@@ -4,10 +4,11 @@ import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
+import com.myreader.data.db.AppDatabase
 
 class MyReaderApp : Application() {
 
-    val database by lazy { data.db.AppDatabase.build(this) }
+    val database: AppDatabase by lazy { AppDatabase.build(this) }
 
     override fun onCreate() {
         super.onCreate()

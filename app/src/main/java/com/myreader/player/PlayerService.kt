@@ -30,7 +30,7 @@ class PlayerService : MediaSessionService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        if (!AudioPlayerHolder::player.isInitialized) {
+        if (!AudioPlayerHolder.isPlayerInitialized) {
             AudioPlayerHolder.player = AudioPlayer(this)
         }
 
@@ -57,4 +57,5 @@ class PlayerService : MediaSessionService() {
 /** 全局播放器持有者 */
 object AudioPlayerHolder {
     lateinit var player: AudioPlayer
+    val isPlayerInitialized: Boolean get() = ::player.isInitialized
 }

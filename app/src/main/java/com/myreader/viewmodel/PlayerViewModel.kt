@@ -20,7 +20,7 @@ import kotlinx.coroutines.launch
 class PlayerViewModel(application: Application) : AndroidViewModel(application) {
 
     val audioPlayer: AudioPlayer by lazy {
-        if (!::AudioPlayerHolder.player.isInitialized) {
+        if (!AudioPlayerHolder.isPlayerInitialized) {
             AudioPlayerHolder.player = AudioPlayer(application)
         }
         AudioPlayerHolder.player
