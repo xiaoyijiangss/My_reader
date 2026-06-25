@@ -30,14 +30,11 @@ class PlayerService : MediaSessionService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val player = if (AudioPlayerHolder::player.isInitialized) {
-            AudioPlayerHolder.player
-        } else {
+        if (!AudioPlayerHolder::player.isInitialized) {
             AudioPlayerHolder.player = AudioPlayer(this)
-            AudioPlayerHolder.player
         }
 
-        mediaSession = MediaSession.Builder(this, player)
+        mediaSession = MediaSession.Builder(this, AudioPlayerHolder.player.player)
             .setSessionActivity(pendingIntent)
             .build()
     }
@@ -51,10 +48,8 @@ class PlayerService : MediaSessionService() {
     }
 
     override fun onDestroy() {
-        mediaSession?.run {
-            player.release()
-            release()
-        }
+        mediaSession?.player?.release()
+        mediaSession?.release()
         super.onDestroy()
     }
 }
