@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MyReader</string>
+    <string name="tab_library">书架</string>
+    <string name="tab_search">搜索</string>
+    <string name="tab_settings">设置</string>
+</resources>
