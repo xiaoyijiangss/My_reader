@@ -10,6 +10,7 @@ import okhttp3.Request
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import java.net.URLEncoder
+import java.nio.charset.Charset
 import java.util.concurrent.TimeUnit
 
 class SourceEngine {
@@ -157,7 +158,7 @@ class SourceEngine {
             .build()
         val response = client.newCall(request).execute()
         val body = response.body?.bytes() ?: throw Exception("Empty response")
-        return Jsoup.parse(String(body, charset(charset)))
+        return Jsoup.parse(String(body, Charset.forName(charset)))
     }
 
     private fun fixUrl(url: String, baseUrl: String): String {

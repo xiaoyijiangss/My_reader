@@ -8,6 +8,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
@@ -24,7 +25,7 @@ fun LibraryScreen(
     onBookClick: (Long) -> Unit,
     viewModel: LibraryViewModel = viewModel()
 ) {
-    val books by viewModel.books
+    val books by viewModel.books.collectAsState()
 
     Column(modifier = Modifier.fillMaxSize()) {
         TopAppBar(
