@@ -17,12 +17,21 @@ android {
         versionName = "1.0"
     }
 
+    signingConfigs {
+        register("releaseSign") {
+            storeFile = file("${System.getProperty("user.home")}/.android/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
-            // 个人使用：用内置 debug 签名，可直接安装
+            // 个人使用：用 debug keystore 签名，可直接安装
             // 如需上架，请替换为正式 keystore
-            signingConfig = signingConfigs.debug
+            signingConfig = signingConfigs.getByName("releaseSign")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
