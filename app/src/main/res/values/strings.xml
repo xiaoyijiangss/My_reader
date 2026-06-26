@@ -5,4 +5,9 @@
     <string name="tab_search">搜索</string>
     <string name="tab_settings">设置</string>
     <string name="widget_description">MyReader 音频播放控制小组件</string>
+    <string name="widget_play_pause">播放/暂停</string>
+    <string name="widget_previous">上一章</string>
+    <string name="widget_rewind">后退15秒</string>
+    <string name="widget_forward">前进30秒</string>
+    <string name="widget_next">下一章</string>
 </resources>
