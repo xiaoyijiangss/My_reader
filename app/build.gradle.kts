@@ -20,6 +20,9 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
+            // 个人使用：用内置 debug 签名，可直接安装
+            // 如需上架，请替换为正式 keystore
+            signingConfig = signingConfigs.debug
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
