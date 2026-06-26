@@ -66,7 +66,7 @@ object SourceManager {
             _sources.value = legadoSources
         }
 
-        // 加载 CSS 源（始终使用内置源作为后备）
+        // 加载 CSS 源（内置源作为后备，但优先使用 Legado 源搜索）
         _cssSources.value = BuiltinSources.ALL
     }
 

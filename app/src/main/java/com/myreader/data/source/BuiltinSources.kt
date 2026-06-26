@@ -3,10 +3,12 @@ package com.myreader.data.source
 /**
  * 内置书源 — 基于主流有声书网站的真实CSS选择器规则
  *
- * 覆盖的网站: 听书网、听书阁、幻听书、天天听书、听中国、听世界、喜马拉雅等
+ * 覆盖的网站: 听书网、听书阁、幻听书、天天听书、听中国、听世界等
  * 所有规则均为 CSS Selector，由 SourceEngine 用 Jsoup 解析执行。
  *
- * 参考: "我的听书"APP 的 JAR 书源所覆盖的目标网站
+ * ⚠️ 注意：多数听书网站有 Cloudflare 等反爬保护，
+ * CSS选择器爬虫可能无法正常获取数据。
+ * 建议优先使用 Legado 格式书源（从 yckceo.com 社区获取）。
  */
 object BuiltinSources {
 

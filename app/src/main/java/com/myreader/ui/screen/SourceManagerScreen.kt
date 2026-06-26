@@ -69,20 +69,29 @@ fun SourceManagerScreen(
         }
 
         // 一键获取按钮
-        OutlinedButton(
-            onClick = {
-                viewModel.fetchAllHubs()
-            },
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 4.dp),
-            enabled = !uiState.isFetching
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            if (uiState.isFetching) {
-                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                Spacer(modifier = Modifier.width(8.dp))
+            OutlinedButton(
+                onClick = { viewModel.fetchAllHubs() },
+                modifier = Modifier.weight(1f),
+                enabled = !uiState.isFetching
+            ) {
+                if (uiState.isFetching) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+                Text(if (uiState.isFetching) uiState.fetchProgress else "一键获取")
             }
-            Text(if (uiState.isFetching) uiState.fetchProgress else "一键获取所有社区书源")
+            OutlinedButton(
+                onClick = { viewModel.reloadPrebuilt() },
+                enabled = !uiState.isFetching
+            ) {
+                Text("加载预置源")
+            }
         }
 
         // 状态消息
@@ -159,17 +168,19 @@ fun SourceManagerScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        "点击「社区仓库」获取书源\n或粘贴 JSON 手动导入",
+                        "点击「加载预置源」使用内置的有声书源\n" +
+                            "或点击「社区仓库」获取第三方书源\n" +
+                            "或粘贴「阅读」APP 的 JSON 导入",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        "使用教程：\n" +
-                            "1. 点「社区仓库」→ 选择一个仓库 → 自动下载\n" +
-                            "2. 或去 GitHub 搜「阅读 书源」→ 复制 JSON → 点「导入JSON」粘贴\n" +
-                            "3. 导入后在搜索页搜索即可\n" +
-                            "4. 8个CSS内置源作为后备（无需导入）",
+                        "💡 提示：\n" +
+                            "• 主流听书网站有反爬保护，部分源可能搜索不到\n" +
+                            "• 获取最新书源请访问 yckceo.com 搜索「听书」\n" +
+                            "• 推荐下载「懒人听书」「听书网」等标记「声」的源\n" +
+                            "• 导入后可在搜索页搜索有声小说",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                     )
@@ -263,33 +274,35 @@ fun SourceManagerScreen(
             text = {
                 Column {
                     Text(
-                        "选择一个开源社区仓库自动获取书源：",
+                        "ⓘ 标「Legado」的为可用的「阅读」格式源\n  标「JAR」的为「我的听书」插件（仅供索引参考）",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(8.dp))
-                    SourceHubClient.KNOWN_HUBS.forEach { hub ->
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            onClick = {
-                                viewModel.fetchFromHub(hub)
-                                showHubDialog = false
-                            }
-                        ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Text(
-                                    hub.name,
-                                    style = MaterialTheme.typography.titleSmall
-                                )
-                                Text(
-                                    hub.description,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+
+                    // Legado 源
+                    Text("Legado 格式源（可直接导入）",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.height(4.dp))
+                    SourceHubClient.KNOWN_HUBS.filter { it.type == SourceHubClient.HubType.LEGADO_JSON }.forEach { hub ->
+                        SourceHubItem(hub) {
+                            viewModel.fetchFromHub(hub)
+                            showHubDialog = false
                         }
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+                    HorizontalDivider()
+                    Spacer(Modifier.height(8.dp))
+
+                    // 「我的听书」JAR 索引
+                    Text("「我的听书」JAR 插件索引（仅供参考）",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(4.dp))
+                    SourceHubClient.KNOWN_HUBS.filter { it.type == SourceHubClient.HubType.MY_TINGSHU_JAR }.take(5).forEach { hub ->
+                        SourceHubItem(hub) { /* JAR源不可直接导入 */ }
                     }
                 }
             },
@@ -298,7 +311,7 @@ fun SourceManagerScreen(
                     viewModel.fetchAllHubs()
                     showHubDialog = false
                 }) {
-                    Text("一键全部获取")
+                    Text("一键获取 Legado 源")
                 }
             },
             dismissButton = {
@@ -307,6 +320,56 @@ fun SourceManagerScreen(
                 }
             }
         )
+    }
+}
+
+@Composable
+private fun SourceHubItem(
+    hub: SourceHubClient.SourceHub,
+    onClick: () -> Unit
+) {
+    val typeTag = when (hub.type) {
+        SourceHubClient.HubType.LEGADO_JSON -> "Legado"
+        SourceHubClient.HubType.MY_TINGSHU_JAR -> "JAR"
+    }
+    val tagColor = when (hub.type) {
+        SourceHubClient.HubType.LEGADO_JSON -> MaterialTheme.colorScheme.primary
+        SourceHubClient.HubType.MY_TINGSHU_JAR -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 3.dp),
+        onClick = onClick
+    ) {
+        Row(
+            modifier = Modifier.padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(hub.name, style = MaterialTheme.typography.titleSmall)
+                    Spacer(Modifier.width(6.dp))
+                    Surface(
+                        color = tagColor.copy(alpha = 0.15f),
+                        shape = MaterialTheme.shapes.extraSmall
+                    ) {
+                        Text(
+                            typeTag,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = tagColor
+                        )
+                    }
+                }
+                Text(
+                    hub.description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
     }
 }
 
