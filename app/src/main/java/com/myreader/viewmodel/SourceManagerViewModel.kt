@@ -181,6 +181,15 @@ class SourceManagerViewModel(application: Application) : AndroidViewModel(applic
         }
     }
 
+    fun reloadPrebuilt() {
+        viewModelScope.launch {
+            SourceManager.reloadPrebuilt()
+            _uiState.value = _uiState.value.copy(
+                importResult = "已重新加载预置有声书源（${SourceManager.sources.value.size} 个）"
+            )
+        }
+    }
+
     fun clearError() {
         _uiState.value = _uiState.value.copy(error = null)
     }

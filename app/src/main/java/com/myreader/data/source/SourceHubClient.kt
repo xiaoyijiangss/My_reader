@@ -34,24 +34,29 @@ object SourceHubClient {
 
     val KNOWN_HUBS = listOf(
         SourceHub(
-            name = "XIUA2 阅读书源合集",
-            url = "https://raw.githubusercontent.com/XIU2/Yuedu/master/shuyuan",
-            description = "最全面的阅读书源集合，包含大量有声源"
+            name = "「我的听书」eprendre书源",
+            url = "https://wdts.top/api/sources/external_sources.js",
+            description = "eprendre制作，「我的听书」社区维护 (19源)"
         ),
         SourceHub(
-            name = "CNAD666 书源合集",
-            url = "https://raw.githubusercontent.com/CNAD666/MyData/master/novel/bookSource.json",
-            description = "高质量精选书源"
+            name = "「我的听书」shun书源",
+            url = "https://wdts.top/api/sources/shun.json",
+            description = "shun制作的热心书源 (9源)"
         ),
         SourceHub(
-            name = "Namo的书源合集",
-            url = "https://raw.githubusercontent.com/Namo0O/legado_source/master/bookSource.json",
-            description = "更新频繁的优质书源"
+            name = "「我的听书」sound听书源",
+            url = "https://wdts.top/api/sources/my_sound.json",
+            description = "听书源合集，版本12 (7源)"
         ),
         SourceHub(
-            name = "maotoumao书源 (含有声)",
-            url = "https://raw.githubusercontent.com/maotoumao/MusicFreePlugins/master/plugins.json",
-            description = "MusicFree 音频源插件合集"
+            name = "「我的听书」bxb100书源",
+            url = "https://wdts.top/api/sources/bxb100.json",
+            description = "bxb100制作的听书源"
+        ),
+        SourceHub(
+            name = "「我的听书」英文有声源",
+            url = "https://wdts.top/api/sources/english_source.json",
+            description = "英文有声书源 (3源)"
         ),
     )
 

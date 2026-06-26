@@ -22,6 +22,7 @@ object SourceManager {
     private const val PREFS_NAME = "book_sources"
     private const val KEY_SOURCES = "legado_sources"
     private const val KEY_CSS_SOURCES = "css_sources"
+    private const val KEY_PREBUILT_LOADED = "prebuilt_loaded_v2"
 
     private val _sources = MutableStateFlow<List<LegadoSource>>(emptyList())
     val sources: StateFlow<List<LegadoSource>> = _sources.asStateFlow()
@@ -50,15 +51,36 @@ object SourceManager {
             } catch (e: Exception) { emptyList() }
         } else emptyList()
 
-        // 如果没有存储的源，首次使用时初始化内置源
-        if (legadoSources.isEmpty()) {
-            _sources.value = emptyList()
+        // 首次启动：自动加载预置有声书源
+        val prebuiltLoaded = prefs.getBoolean(KEY_PREBUILT_LOADED, false)
+        if (legadoSources.isEmpty() || !prebuiltLoaded) {
+            try {
+                val prebuilt = PrebuiltAudiobookSources.allSources()
+                _sources.value = prebuilt
+                saveSources()
+                prefs.edit().putBoolean(KEY_PREBUILT_LOADED, true).apply()
+            } catch (e: Exception) {
+                _sources.value = legadoSources
+            }
         } else {
             _sources.value = legadoSources
         }
 
-        // 加载 CSS 源（始终使用内置源作为基础）
+        // 加载 CSS 源（始终使用内置源作为后备）
         _cssSources.value = BuiltinSources.ALL
+    }
+
+    /** 重新加载预置有声书源（覆盖） */
+    suspend fun reloadPrebuilt() = withContext(Dispatchers.IO) {
+        try {
+            val prebuilt = PrebuiltAudiobookSources.allSources()
+            _sources.value = prebuilt
+            saveSources()
+            val prefs = MyReaderApp.instance.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            prefs.edit().putBoolean(KEY_PREBUILT_LOADED, true).apply()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     /** 获取启用的 Legado 源 */
