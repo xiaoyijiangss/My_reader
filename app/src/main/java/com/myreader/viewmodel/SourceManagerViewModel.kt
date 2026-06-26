@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.myreader.data.source.LegadoSource
 import com.myreader.data.source.SourceHubClient
 import com.myreader.data.source.SourceManager
+import com.myreader.data.source.WdtsSource
+import com.myreader.data.source.WdtsSourceClient
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -13,11 +15,14 @@ import kotlinx.coroutines.launch
 
 data class SourceMgrUiState(
     val sources: List<LegadoSource> = emptyList(),
+    val wdtsSources: List<WdtsSource> = emptyList(),
     val isImporting: Boolean = false,
     val importResult: String = "",
     val isFetching: Boolean = false,
     val fetchProgress: String = "",
-    val error: String? = null
+    val error: String? = null,
+    val wdtsCount: Int = 0,
+    val wdtsReadyCount: Int = 0  // 已提取规则可用于搜索的
 )
 
 class SourceManagerViewModel(application: Application) : AndroidViewModel(application) {
@@ -30,6 +35,15 @@ class SourceManagerViewModel(application: Application) : AndroidViewModel(applic
             SourceManager.init(application)
             SourceManager.sources.collect { sources ->
                 _uiState.value = _uiState.value.copy(sources = sources)
+            }
+        }
+        viewModelScope.launch {
+            SourceManager.wdtsSources.collect { wdts ->
+                _uiState.value = _uiState.value.copy(
+                    wdtsSources = wdts,
+                    wdtsCount = wdts.size,
+                    wdtsReadyCount = wdts.count { it.isValidForSearch && it.enabled }
+                )
             }
         }
     }
@@ -187,6 +201,100 @@ class SourceManagerViewModel(application: Application) : AndroidViewModel(applic
             _uiState.value = _uiState.value.copy(
                 importResult = "已重新加载预置有声书源（${SourceManager.sources.value.size} 个）"
             )
+        }
+    }
+
+    // ==================== WDTS 源管理 ====================
+
+    fun refreshWdtsMetadata() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isFetching = true, fetchProgress = "正在获取WDTS源元数据...", error = null)
+            try {
+                SourceManager.refreshWdtsMetadata { progress ->
+                    _uiState.value = _uiState.value.copy(fetchProgress = progress)
+                }
+                _uiState.value = _uiState.value.copy(
+                    isFetching = false,
+                    fetchProgress = "完成",
+                    importResult = "WDTS源元数据已刷新（共 ${SourceManager.wdtsSources.value.size} 个）"
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isFetching = false,
+                    error = "获取WDTS源失败: ${e.localizedMessage}"
+                )
+            }
+        }
+    }
+
+    fun downloadWdtsJar(source: WdtsSource) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                isFetching = true,
+                fetchProgress = "下载中: ${source.metadata.entryPackage}...",
+                error = null
+            )
+            try {
+                val result = SourceManager.downloadWdtsJar(source) { progress ->
+                    _uiState.value = _uiState.value.copy(fetchProgress = progress)
+                }
+                _uiState.value = _uiState.value.copy(
+                    isFetching = false,
+                    fetchProgress = "完成",
+                    importResult = if (result.isValidForSearch) {
+                        "✅ ${source.metadata.entryPackage} 已解析，可用于搜索"
+                    } else {
+                        "⚠️ ${source.metadata.entryPackage} 下载完成，但未提取到搜索规则"
+                    }
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isFetching = false,
+                    error = "下载失败: ${e.localizedMessage}"
+                )
+            }
+        }
+    }
+
+    fun downloadAllWdtsJars() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isFetching = true, fetchProgress = "开始下载所有WDTS源...", error = null)
+            try {
+                SourceManager.downloadAllWdtsJars { progress ->
+                    _uiState.value = _uiState.value.copy(fetchProgress = progress)
+                }
+                val readyCount = SourceManager.wdtsSources.value.count { it.isValidForSearch }
+                _uiState.value = _uiState.value.copy(
+                    isFetching = false,
+                    fetchProgress = "完成",
+                    importResult = "WDTS源处理完成: ${readyCount} 个可用于搜索"
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isFetching = false,
+                    error = "下载失败: ${e.localizedMessage}"
+                )
+            }
+        }
+    }
+
+    fun toggleWdtsSource(source: WdtsSource) {
+        viewModelScope.launch {
+            SourceManager.toggleWdtsSource(source)
+        }
+    }
+
+    fun removeWdtsSource(source: WdtsSource) {
+        viewModelScope.launch {
+            SourceManager.removeWdtsSource(source)
+            _uiState.value = _uiState.value.copy(importResult = "已删除: ${source.metadata.entryPackage}")
+        }
+    }
+
+    fun clearWdtsAll() {
+        viewModelScope.launch {
+            SourceManager.clearWdtsAll()
+            _uiState.value = _uiState.value.copy(importResult = "已清空所有WDTS源")
         }
     }
 

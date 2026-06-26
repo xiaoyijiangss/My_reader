@@ -1,5 +1,6 @@
 package com.myreader.data.source
 
+import android.util.Log
 import com.myreader.model.Book
 import com.myreader.model.Chapter
 import com.myreader.model.SearchResult
@@ -15,6 +16,10 @@ import java.util.concurrent.TimeUnit
 
 class SourceEngine {
 
+    companion object {
+        private const val TAG = "SourceEngine"
+    }
+
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
@@ -26,22 +31,37 @@ class SourceEngine {
         keyword: String,
         rules: List<SourceRule> = BuiltinSources.ALL
     ): List<SearchResult> = withContext(Dispatchers.IO) {
-        rules.filter { it.enabled }.flatMap { rule ->
+        val enabledRules = rules.filter { it.enabled }
+        Log.i(TAG, "========== CSS搜索: \"$keyword\", 书源数=${enabledRules.size} ==========")
+
+        val allResults = mutableListOf<SearchResult>()
+        for (rule in enabledRules) {
             try {
-                searchSingle(keyword, rule)
+                val results = searchSingle(keyword, rule)
+                if (results.isNotEmpty()) {
+                    Log.i(TAG, "  ✅ [${rule.name}] 找到 ${results.size} 个结果")
+                    allResults.addAll(results)
+                } else {
+                    Log.w(TAG, "  ❌ [${rule.name}] 无结果")
+                }
             } catch (e: Exception) {
-                e.printStackTrace()
-                emptyList()
+                Log.e(TAG, "  💥 [${rule.name}] 异常: ${e.javaClass.simpleName}: ${e.message}")
             }
         }
+        Log.i(TAG, "========== CSS搜索完成: 总计 ${allResults.size} 个结果 ==========")
+        allResults
     }
 
     private fun searchSingle(keyword: String, rule: SourceRule): List<SearchResult> {
         val encoded = URLEncoder.encode(keyword, rule.charset)
         val url = rule.searchUrl.replace("{keyword}", encoded)
-        val doc = fetchDoc(url, rule.charset)
+        Log.d(TAG, "    [${rule.name}] URL: $url")
 
-        return doc.select(rule.searchListRule).mapNotNull { item ->
+        val doc = fetchDoc(url, rule.charset)
+        val items = doc.select(rule.searchListRule)
+        Log.d(TAG, "    [${rule.name}] CSS=\"${rule.searchListRule}\" 匹配: ${items.size} 个元素")
+
+        val results = items.mapNotNull { item ->
             try {
                 val title = item.select(rule.searchTitleRule).text().trim()
                 val author = item.select(rule.searchAuthorRule).text().trim()
@@ -65,6 +85,12 @@ class SourceEngine {
                 null
             }
         }
+
+        if (results.isEmpty() && items.isNotEmpty()) {
+            Log.w(TAG, "    [${rule.name}] 匹配 ${items.size} 元素但提取失败")
+            Log.d(TAG, "    [${rule.name}] 首元素HTML: ${items.first()?.outerHtml()?.take(300)}")
+        }
+        return results
     }
 
     /** 获取书籍详情 */

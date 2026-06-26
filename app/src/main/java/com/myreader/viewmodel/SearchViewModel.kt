@@ -34,6 +34,13 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                 _uiState.value = _uiState.value.copy(sourceCount = totalCount)
             }
         }
+        // 同时监听 WDTS 源变化
+        viewModelScope.launch {
+            SourceManager.wdtsSources.collect {
+                val totalCount = SourceManager.allSourcesCount
+                _uiState.value = _uiState.value.copy(sourceCount = totalCount)
+            }
+        }
     }
 
     fun onQueryChange(query: String) {

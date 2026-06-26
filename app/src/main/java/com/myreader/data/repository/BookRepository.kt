@@ -23,7 +23,7 @@ class BookRepository(
     // ---- 本地书架 ----
     fun getAllBooks(): Flow<List<BookEntity>> = bookDao.getAllBooks()
 
-    // ---- 搜索（合并 CSS源 + Legado源） ----
+    // ---- 搜索（合并 CSS源 + Legado源 + WDTS源） ----
     suspend fun searchOnline(keyword: String): List<SearchResult> {
         val results = mutableListOf<SearchResult>()
 
@@ -37,6 +37,14 @@ class BookRepository(
             val legadoSources = SourceManager.getEnabled()
             if (legadoSources.isNotEmpty()) {
                 results.addAll(legadoEngine.search(keyword, legadoSources))
+            }
+        } catch (e: Exception) { e.printStackTrace() }
+
+        // 3. 搜索 WDTS（我的听书）源
+        try {
+            val wdtsSources = SourceManager.getEnabledWdts()
+            if (wdtsSources.isNotEmpty()) {
+                results.addAll(com.myreader.data.source.WdtsSourceClient.search(keyword, wdtsSources))
             }
         } catch (e: Exception) { e.printStackTrace() }
 

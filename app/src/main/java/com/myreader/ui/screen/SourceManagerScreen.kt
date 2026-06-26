@@ -9,10 +9,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.myreader.data.source.SourceHubClient
+import com.myreader.data.source.WdtsSource
+import com.myreader.data.source.WdtsSourceStatus
 import com.myreader.viewmodel.SourceManagerViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -91,6 +94,39 @@ fun SourceManagerScreen(
                 enabled = !uiState.isFetching
             ) {
                 Text("加载预置源")
+            }
+        }
+
+        // WDTS 源操作按钮
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Button(
+                onClick = { viewModel.refreshWdtsMetadata() },
+                modifier = Modifier.weight(1f),
+                enabled = !uiState.isFetching,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.tertiary
+                )
+            ) {
+                Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("刷新WDTS源")
+            }
+            Button(
+                onClick = { viewModel.downloadAllWdtsJars() },
+                modifier = Modifier.weight(1f),
+                enabled = !uiState.isFetching && uiState.wdtsSources.isNotEmpty(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.tertiary
+                )
+            ) {
+                Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("下载全部")
             }
         }
 
@@ -200,6 +236,41 @@ fun SourceManagerScreen(
                     onDelete = { viewModel.removeSource(source) }
                 )
             }
+
+            // WDTS 源分隔线
+            if (uiState.wdtsSources.isNotEmpty()) {
+                item {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 8.dp),
+                        color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.5f)
+                    )
+                }
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "「我的听书」WDTS源 (${uiState.wdtsReadyCount}/${uiState.wdtsSources.size} 可用)",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.tertiary
+                        )
+                        TextButton(onClick = { viewModel.clearWdtsAll() }) {
+                            Text("清空", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
+            }
+
+            items(uiState.wdtsSources) { wdts ->
+                WdtsSourceItem(
+                    source = wdts,
+                    onToggle = { viewModel.toggleWdtsSource(wdts) },
+                    onDownload = { viewModel.downloadWdtsJar(wdts) },
+                    onDelete = { viewModel.removeWdtsSource(wdts) }
+                )
+            }
         }
     }
 
@@ -297,12 +368,18 @@ fun SourceManagerScreen(
                     Spacer(Modifier.height(8.dp))
 
                     // 「我的听书」JAR 索引
-                    Text("「我的听书」JAR 插件索引（仅供参考）",
+                    Text("「我的听书」JAR 插件（现已支持↓）",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        color = MaterialTheme.colorScheme.tertiary)
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        "点击「刷新WDTS源」按钮可在主界面下载和解析这些源",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
                     Spacer(Modifier.height(4.dp))
                     SourceHubClient.KNOWN_HUBS.filter { it.type == SourceHubClient.HubType.MY_TINGSHU_JAR }.take(5).forEach { hub ->
-                        SourceHubItem(hub) { /* JAR源不可直接导入 */ }
+                        SourceHubItem(hub) { /* WDTS源通过主界面按钮管理 */ }
                     }
                 }
             },
@@ -421,6 +498,142 @@ private fun SourceItem(
                     modifier = Modifier.size(18.dp),
                     tint = MaterialTheme.colorScheme.error
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun WdtsSourceItem(
+    source: WdtsSource,
+    onToggle: () -> Unit,
+    onDownload: () -> Unit,
+    onDelete: () -> Unit
+) {
+    val statusColor = when (source.status) {
+        WdtsSourceStatus.EXTRACTED -> MaterialTheme.colorScheme.primary
+        WdtsSourceStatus.FALLBACK_HTTP -> Color(0xFF_FF9800)
+        WdtsSourceStatus.DOWNLOADED -> MaterialTheme.colorScheme.secondary
+        WdtsSourceStatus.DOWNLOAD_FAILED -> MaterialTheme.colorScheme.error
+        WdtsSourceStatus.METADATA_ONLY -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val statusText = when (source.status) {
+        WdtsSourceStatus.EXTRACTED -> "✅ 已解析"
+        WdtsSourceStatus.FALLBACK_HTTP -> "⚠️ 映射模式"
+        WdtsSourceStatus.DOWNLOADED -> "📥 待解析"
+        WdtsSourceStatus.DOWNLOAD_FAILED -> "❌ ${source.errorMsg?.take(20) ?: "下载失败"}"
+        WdtsSourceStatus.METADATA_ONLY -> "⏳ 待下载"
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = if (source.isValidForSearch)
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+            else
+                MaterialTheme.colorScheme.surface
+        )
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            source.metadata.entryPackage,
+                            style = MaterialTheme.typography.bodyLarge,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Surface(
+                            color = statusColor.copy(alpha = 0.15f),
+                            shape = MaterialTheme.shapes.extraSmall
+                        ) {
+                            Text(
+                                statusText,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = statusColor
+                            )
+                        }
+                    }
+                    Text(
+                        "[${source.hubName}] v${source.metadata.version}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (source.metadata.updateMsg.isNotBlank()) {
+                        Text(
+                            source.metadata.updateMsg,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.tertiary,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    if (source.extractedRule?.siteName?.isNotBlank() == true) {
+                        Text(
+                            "站点: ${source.extractedRule!!.siteName}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+
+            // 操作按钮行
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 6.dp),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // 仅在已提取/可用时显示开关
+                if (source.isValidForSearch) {
+                    Text(
+                        if (source.enabled) "已启用" else "已禁用",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Switch(
+                        checked = source.enabled,
+                        onCheckedChange = { onToggle() },
+                        modifier = Modifier.padding(start = 4.dp)
+                    )
+                }
+
+                // 下载按钮（未下载时显示）
+                if (source.status == WdtsSourceStatus.METADATA_ONLY ||
+                    source.status == WdtsSourceStatus.DOWNLOAD_FAILED) {
+                    TextButton(onClick = onDownload) {
+                        Icon(Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Text("下载", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+
+                // 重新下载按钮（已下载但未提取）
+                if (source.status == WdtsSourceStatus.DOWNLOADED) {
+                    TextButton(onClick = onDownload) {
+                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Text("重新提取", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+
+                IconButton(onClick = onDelete, modifier = Modifier.size(28.dp)) {
+                    Icon(
+                        Icons.Default.Close,
+                        contentDescription = "删除",
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
+                    )
+                }
             }
         }
     }

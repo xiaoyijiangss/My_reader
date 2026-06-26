@@ -1,5 +1,6 @@
 package com.myreader.data.source
 
+import android.util.Log
 import com.myreader.model.Book
 import com.myreader.model.Chapter
 import com.myreader.model.SearchResult
@@ -19,6 +20,11 @@ import java.util.concurrent.TimeUnit
  */
 class LegadoEngine {
 
+    companion object {
+        private const val TAG = "LegadoEngine"
+        private const val DEBUG = true
+    }
+
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
@@ -30,19 +36,37 @@ class LegadoEngine {
         keyword: String,
         sources: List<LegadoSource>
     ): List<SearchResult> = withContext(Dispatchers.IO) {
-        sources.filter { it.enabled && it.isValid }.flatMap { source ->
+        val validSources = sources.filter { it.enabled && it.isValid }
+        Log.i(TAG, "========== 开始搜索: \"$keyword\", 有效书源数=${validSources.size} ==========")
+
+        val allResults = mutableListOf<SearchResult>()
+        for (source in validSources) {
             try {
-                searchSingle(keyword, source)
+                val results = searchSingle(keyword, source)
+                if (results.isNotEmpty()) {
+                    Log.i(TAG, "  ✅ [${source.bookSourceName}] 找到 ${results.size} 个结果")
+                    allResults.addAll(results)
+                } else {
+                    Log.w(TAG, "  ❌ [${source.bookSourceName}] 无结果")
+                }
             } catch (e: Exception) {
-                e.printStackTrace()
-                emptyList()
+                Log.e(TAG, "  💥 [${source.bookSourceName}] 异常: ${e.javaClass.simpleName}: ${e.message}")
+                if (DEBUG) e.printStackTrace()
             }
         }
+        Log.i(TAG, "========== 搜索完成: 总计 ${allResults.size} 个结果 ==========")
+        allResults
     }
 
     private fun searchSingle(keyword: String, source: LegadoSource): List<SearchResult> {
-        val searchRule = source.ruleSearch ?: return emptyList()
-        if (searchRule.bookList.isBlank()) return emptyList()
+        val searchRule = source.ruleSearch ?: run {
+            Log.w(TAG, "    [${source.bookSourceName}] ruleSearch 为空，跳过")
+            return emptyList()
+        }
+        if (searchRule.bookList.isBlank()) {
+            Log.w(TAG, "    [${source.bookSourceName}] bookList 规则为空，跳过")
+            return emptyList()
+        }
 
         val encoded = URLEncoder.encode(keyword, "UTF-8")
         val url = source.searchUrl.replace("{{key}}", encoded)
@@ -50,13 +74,24 @@ class LegadoEngine {
             .replace("{{keyword}}", encoded)
             .replace("{keyword}", encoded)
 
+        Log.d(TAG, "    [${source.bookSourceName}] 搜索URL: $url")
+        Log.d(TAG, "    [${source.bookSourceName}] bookList原始规则: ${searchRule.bookList}")
+
         val doc = fetchDoc(url, source.httpUserAgent)
         val listCss = LegadoRuleParser.toCssSelector(searchRule.bookList)
 
-        val items = if (listCss.isNotBlank()) doc.select(listCss)
-        else doc.body()?.children() ?: org.jsoup.select.Elements()
+        Log.d(TAG, "    [${source.bookSourceName}] 解析后CSS: \"$listCss\"")
 
-        return items.mapNotNull { item ->
+        val items = if (listCss.isNotBlank()) {
+            val selected = doc.select(listCss)
+            Log.d(TAG, "    [${source.bookSourceName}] CSS匹配元素数: ${selected.size}")
+            selected
+        } else {
+            Log.w(TAG, "    [${source.bookSourceName}] CSS为空，回退到body子元素")
+            doc.body()?.children() ?: org.jsoup.select.Elements()
+        }
+
+        val results = items.mapNotNull { item ->
             try {
                 val title = LegadoRuleParser.getText(item, searchRule.name)
                 val author = LegadoRuleParser.getText(item, searchRule.author)
@@ -72,11 +107,27 @@ class LegadoEngine {
                         sourceId = source.id,
                         description = ""
                     )
-                } else null
+                } else {
+                    Log.d(TAG, "    [${source.bookSourceName}] 跳过(标题/URL为空): title=\"$title\" url=\"$detailUrl\"")
+                    null
+                }
             } catch (e: Exception) {
+                Log.d(TAG, "    [${source.bookSourceName}] 解析元素异常: ${e.message}")
                 null
             }
         }
+
+        if (results.isEmpty() && items.isNotEmpty()) {
+            Log.w(TAG, "    [${source.bookSourceName}] 匹配到 ${items.size} 个元素但无法提取结果。可能需要更新 name/author/detailUrl 规则")
+            // 输出第一条原始HTML帮助调试
+            val firstHtml = items.first()?.outerHtml()?.take(300) ?: "N/A"
+            Log.d(TAG, "    [${source.bookSourceName}] 第一条匹配元素HTML: $firstHtml")
+            Log.d(TAG, "    [${source.bookSourceName}] name规则: ${searchRule.name}")
+            Log.d(TAG, "    [${source.bookSourceName}] author规则: ${searchRule.author}")
+            Log.d(TAG, "    [${source.bookSourceName}] detailUrl规则: ${searchRule.detailUrl}")
+        }
+
+        return results
     }
 
     /** 获取书籍详情 */
@@ -180,20 +231,34 @@ class LegadoEngine {
 
     private fun fetchDoc(url: String, customUA: String): Document {
         val ua = customUA.ifBlank {
-            "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
         }
         val request = Request.Builder()
             .url(url)
             .header("User-Agent", ua)
             .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
             .header("Accept-Language", "zh-CN,zh;q=0.9")
+            .header("Cache-Control", "no-cache")
             .build()
+
         val response = client.newCall(request).execute()
-        val body = response.body?.bytes() ?: throw Exception("Empty response")
+        Log.d(TAG, "      HTTP ${response.code} ${response.message}, 请求URL: $url")
+
+        if (!response.isSuccessful) {
+            val errMsg = "HTTP ${response.code}: ${response.message}"
+            Log.e(TAG, "      $errMsg")
+            throw Exception(errMsg)
+        }
+
+        val body = response.body?.bytes() ?: throw Exception("Empty response body")
+        Log.d(TAG, "      响应大小: ${body.size} bytes")
 
         // 自动检测编码
         val html = String(body, Charsets.UTF_8)
         val doc = Jsoup.parse(html)
+        val titleTag = doc.title()
+        Log.d(TAG, "      页面标题: $titleTag")
+
         // 尝试从meta标签获取正确编码
         val charsetMeta = doc.select("meta[charset]").first()
             ?.attr("charset")
@@ -203,6 +268,7 @@ class LegadoEngine {
 
         return if (charsetMeta != null && charsetMeta.uppercase() != "UTF-8") {
             try {
+                Log.d(TAG, "      检测到编码: $charsetMeta，重新解析")
                 Jsoup.parse(String(body, java.nio.charset.Charset.forName(charsetMeta)))
             } catch (e: Exception) {
                 doc
