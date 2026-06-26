@@ -5,6 +5,7 @@ import android.util.Log
 import com.myreader.MyReaderApp
 import com.myreader.model.SearchResult
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -824,9 +825,9 @@ object WdtsSourceClient {
             // 尝试解析原始 JSON 规则并使用 Legado 引擎
             val legadoSource = LegadoSource.fromJson(rule.rawRules!!)
             if (legadoSource != null && legadoSource.isValid) {
-                // 直接使用 LegadoEngine 处理
+                // 直接使用 LegadoEngine 处理（searchSingle 运行在 Dispatchers.IO，runBlocking 安全）
                 val engine = LegadoEngine()
-                return engine.search(keyword, listOf(legadoSource))
+                return runBlocking { engine.search(keyword, listOf(legadoSource)) }
             }
         } catch (e: Exception) {
             Log.w(TAG, "Legado规则解析失败: ${e.message}")
