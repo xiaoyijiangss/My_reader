@@ -12,6 +12,7 @@ sealed class Screen(val route: String) {
     object Settings : Screen("settings")
     object BookDetail : Screen("book_detail")
     object Player : Screen("player")
+    object SourceManager : Screen("source_manager")
 }
 
 data class BottomNavItem(

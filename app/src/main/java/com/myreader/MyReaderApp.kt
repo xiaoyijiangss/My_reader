@@ -5,15 +5,25 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
 import com.myreader.data.db.AppDatabase
+import com.myreader.data.source.SourceManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 class MyReaderApp : Application() {
 
     val database: AppDatabase by lazy { AppDatabase.build(this) }
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate() {
         super.onCreate()
         instance = this
         createNotificationChannel()
+        // 预加载书源
+        appScope.launch {
+            SourceManager.init(this@MyReaderApp)
+        }
     }
 
     private fun createNotificationChannel() {

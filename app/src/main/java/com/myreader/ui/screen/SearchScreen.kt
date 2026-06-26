@@ -10,6 +10,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
@@ -23,6 +24,7 @@ import com.myreader.viewmodel.SearchViewModel
 @Composable
 fun SearchScreen(
     onResultClick: (sourceId: String, sourceUrl: String) -> Unit,
+    onManageSources: () -> Unit = {},
     viewModel: SearchViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -51,16 +53,21 @@ fun SearchScreen(
             }
         )
 
-        // 书源标签
+        // 书源状态栏
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            uiState.sources.take(5).forEach { source ->
-                SuggestionChip(
-                    onClick = { },
-                    label = { Text(source.name, style = MaterialTheme.typography.labelSmall) }
-                )
+            Text(
+                "当前书源: ${uiState.sourceCount} 个",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            TextButton(onClick = onManageSources) {
+                Text("管理书源", style = MaterialTheme.typography.labelMedium)
             }
         }
 

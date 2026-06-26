@@ -78,6 +78,9 @@ fun MyReaderApp() {
                                 "${Screen.BookDetail.route}/-1/0" +
                                     "?sourceId=$sourceId&sourceUrl=${java.net.URLEncoder.encode(sourceUrl, "UTF-8")}"
                             )
+                        },
+                        onManageSources = {
+                            navController.navigate(Screen.SourceManager.route)
                         }
                     )
                 }
@@ -115,7 +118,15 @@ fun MyReaderApp() {
                 }
 
                 composable(Screen.Settings.route) {
-                    SettingsScreen()
+                    SettingsScreen(
+                        onManageSources = { navController.navigate(Screen.SourceManager.route) }
+                    )
+                }
+
+                composable(Screen.SourceManager.route) {
+                    SourceManagerScreen(
+                        onBack = { navController.popBackStack() }
+                    )
                 }
             }
         }
