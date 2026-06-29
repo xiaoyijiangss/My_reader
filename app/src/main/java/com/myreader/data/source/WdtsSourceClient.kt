@@ -845,22 +845,28 @@ object WdtsSourceClient {
 
         // 如果有 CSS 选择器，使用它
         if (rule.bookListCss.isNotBlank()) {
-            val items = doc.select(rule.bookListCss)
-            Log.d(TAG, "[${source.metadata.entryPackage}] CSS \"${rule.bookListCss}\" 匹配: ${items.size}")
+            val rawCss = rule.bookListCss
+            val (css, _) = parseLegadoCss(rawCss)
+            val items = doc.select(css)
+            Log.d(TAG, "[${source.metadata.entryPackage}] CSS \"$rawCss\" → \"$css\" 匹配: ${items.size}")
 
             for (item in items) {
                 try {
+                    // 书名：用 Legado 格式选择器（@text 后缀）
                     val title = if (rule.nameCss.isNotBlank()) {
-                        item.select(rule.nameCss).text().trim()
+                        selectByLegadoCss(item, rule.nameCss)
                     } else {
                         item.text().take(50).trim()
                     }
+
+                    // 作者
                     val author = if (rule.authorCss.isNotBlank()) {
-                        item.select(rule.authorCss).text().trim()
+                        selectByLegadoCss(item, rule.authorCss)
                     } else "未知"
 
+                    // 详情链接
                     val detailUrl = if (rule.detailCss.isNotBlank()) {
-                        item.select(rule.detailCss).first()?.attr("abs:href") ?: ""
+                        selectByLegadoCss(item, rule.detailCss)
                     } else {
                         item.select("a[href]").first()?.attr("abs:href") ?: ""
                     }
@@ -996,5 +1002,49 @@ object WdtsSourceClient {
         } catch (e: Exception) {
             emptyList()
         }
+    }
+
+    // ==================== Legado CSS 格式解析 ====================
+
+    /**
+     * 解析 Legado/阅读 格式的 CSS 选择器
+     *
+     * Legado 使用特殊后缀表示提取方式：
+     * - "a@text"    → css="a",     提取 text
+     * - "img@src"   → css="img",   提取 src 属性
+     * - "a@href"    → css="a",     提取 href 属性
+     * - "span@attr" → css="span",  提取 attr 属性
+     *
+     * 返回 (标准CSS选择器, 提取属性名或"text")
+     */
+    private fun parseLegadoCss(raw: String): Pair<String, String> {
+        // 匹配最后一个 @xxx 后缀
+        val lastAt = raw.lastIndexOf('@')
+        if (lastAt > 0 && lastAt < raw.length - 1) {
+            val css = raw.substring(0, lastAt).trim()
+            val attr = raw.substring(lastAt + 1).trim()
+            // @后不能是空格或特殊字符（排除像 @media 的误判）
+            if (attr.matches(Regex("^[a-zA-Z][a-zA-Z0-9_-]*$")) && !attr.contains(" ")) {
+                return Pair(css, attr)
+            }
+        }
+        return Pair(raw, "text")
+    }
+
+    /**
+     * 使用 Legado 格式选择器在元素上查找文本/属性值
+     *
+     * @param parent  父元素（已按 bookListCss 选中的项）
+     * @param ruleCss Legado 格式选择器，如 "div.title a@text"、"a@href"
+     * @return 提取的文本或属性值
+     */
+    private fun selectByLegadoCss(parent: org.jsoup.nodes.Element, ruleCss: String): String {
+        val (css, attr) = parseLegadoCss(ruleCss)
+        val el = if (css.isNotBlank()) parent.selectFirst(css) ?: return "" else parent
+        return when {
+            attr == "text" || attr == "ownText" -> el.ownText().ifBlank { el.text() }
+            attr == "html" -> el.html()
+            else -> el.attr("abs:$attr").ifBlank { el.attr(attr) }
+        }.trim()
     }
 }

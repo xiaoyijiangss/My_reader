@@ -2,11 +2,13 @@ package com.myreader.data.source
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Log
 import com.myreader.MyReaderApp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -30,6 +32,7 @@ object SourceManager {
     private const val KEY_CSS_SOURCES = "css_sources"
     private const val KEY_PREBUILT_LOADED = "prebuilt_loaded_v2"
     private const val KEY_WDTS_INITIALIZED = "wdts_initialized_v1"
+    private const val TAG = "SourceManager"
 
     private val _sources = MutableStateFlow<List<LegadoSource>>(emptyList())
     val sources: StateFlow<List<LegadoSource>> = _sources.asStateFlow()
@@ -113,11 +116,20 @@ object SourceManager {
                 val wdtsList = WdtsSourceClient.fetchAllMetadata()
                 if (wdtsList.isNotEmpty()) {
                     _wdtsSources.value = mergeWdtsSources(_wdtsSources.value, wdtsList)
+                    // 对 METADATA_ONLY 源触发回退映射（无需下载 JAR）
+                    _wdtsSources.value = tryApplyFallbackMappings(_wdtsSources.value)
                     WdtsSourceClient.saveSources(context, _wdtsSources.value)
                 }
                 prefs.edit().putBoolean(KEY_WDTS_INITIALIZED, true).apply()
             } catch (e: Exception) {
                 // 首次获取失败不阻塞启动
+            }
+        } else {
+            // 非首次启动：对已保存的 METADATA_ONLY 源也尝试映射
+            val before = _wdtsSources.value
+            _wdtsSources.value = tryApplyFallbackMappings(before)
+            if (_wdtsSources.value != before) {
+                WdtsSourceClient.saveSources(context, _wdtsSources.value)
             }
         }
     }
@@ -196,7 +208,9 @@ object SourceManager {
         withContext(Dispatchers.IO) {
             val newSources = WdtsSourceClient.fetchAllMetadata(progress)
             // 合并：保留已下载的状态
-            val merged = mergeWdtsSources(_wdtsSources.value, newSources)
+            var merged = mergeWdtsSources(_wdtsSources.value, newSources)
+            // 对 METADATA_ONLY 源触发回退映射（无需下载 JAR）
+            merged = tryApplyFallbackMappings(merged)
             _wdtsSources.value = merged
             WdtsSourceClient.saveSources(MyReaderApp.instance, merged)
         }
@@ -269,6 +283,32 @@ object SourceManager {
                 old.copy(metadata = new.metadata)
             } else {
                 new
+            }
+        }
+    }
+
+    /**
+     * 对所有 METADATA_ONLY 状态的源尝试回退映射（无需下载 JAR）
+     *
+     * extractRules() 在无 JAR 时会走 mapByEntryPackage() 逻辑，
+     * 将 entry_package 名称映射为已知听书网站的搜索配置。
+     * 这样即使 JAR 下载失败，源也能进入 FALLBACK_HTTP 状态并被搜索使用。
+     */
+    private fun tryApplyFallbackMappings(sources: List<WdtsSource>): List<WdtsSource> {
+        return sources.map { source ->
+            if (source.status == WdtsSourceStatus.METADATA_ONLY || source.status == WdtsSourceStatus.DOWNLOAD_FAILED) {
+                try {
+                    val result = runBlocking { WdtsSourceClient.extractRules(source) }
+                    if (result.status != source.status) {
+                        Log.i(TAG, "WDTS回退映射: [${source.metadata.entryPackage}] ${source.status} -> ${result.status}")
+                    }
+                    result
+                } catch (e: Exception) {
+                    Log.w(TAG, "WDTS回退映射失败: [${source.metadata.entryPackage}] ${e.message}")
+                    source
+                }
+            } else {
+                source
             }
         }
     }
