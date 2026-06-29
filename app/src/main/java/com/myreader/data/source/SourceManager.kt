@@ -197,6 +197,94 @@ object SourceManager {
         saveSources()
     }
 
+    /**
+     * 从 URL 导入 Legado 格式的书源 JSON
+     *
+     * 支持从社区维护的书源仓库（如 yckceo.com、GitHub 等）下载并导入。
+     * 这是其他有声书 App 获取可用书源的标准方式。
+     *
+     * @param url 书源 JSON 的 URL（单个源或源数组）
+     * @param progress 进度回调
+     * @return 成功导入的源数量
+     */
+    suspend fun importLegadoSourcesFromUrl(
+        url: String,
+        progress: ((String) -> Unit)? = null
+    ): Int = withContext(Dispatchers.IO) {
+        try {
+            progress?.invoke("正在下载书源...")
+            val client = okhttp3.OkHttpClient.Builder()
+                .connectTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                .followRedirects(true)
+                .build()
+
+            val request = okhttp3.Request.Builder()
+                .url(url)
+                .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36")
+                .header("Accept", "application/json, text/plain, */*")
+                .build()
+
+            val response = client.newCall(request).execute()
+            if (!response.isSuccessful) {
+                Log.w(TAG, "导入书源失败: HTTP ${response.code}")
+                return@withContext 0
+            }
+
+            val body = response.body?.string() ?: return@withContext 0
+            Log.i(TAG, "下载书源 JSON: ${body.take(200)}...")
+
+            // 尝试解析为 JSON 数组
+            val parsedSources = try {
+                LegadoSource.fromJsonArray(body)
+            } catch (e: Exception) {
+                // 尝试作为单对象解析
+                try {
+                    val single = LegadoSource.fromJson(body)
+                    if (single != null) listOf(single) else emptyList()
+                } catch (e2: Exception) {
+                    Log.e(TAG, "无法解析书源JSON: ${e.message}")
+                    emptyList()
+                }
+            }.filter { it.isValid }
+
+            if (parsedSources.isEmpty()) {
+                Log.w(TAG, "没有解析到有效的书源")
+                return@withContext 0
+            }
+
+            progress?.invoke("正在保存 ${parsedSources.size} 个书源...")
+            addSources(parsedSources)
+            Log.i(TAG, "成功导入 ${parsedSources.size} 个书源")
+            parsedSources.size
+        } catch (e: Exception) {
+            Log.e(TAG, "导入书源异常: ${e.message}")
+            0
+        }
+    }
+
+    /**
+     * 从 JSON 字符串导入 Legado 书源
+     */
+    suspend fun importLegadoSourcesFromJson(json: String): Int = withContext(Dispatchers.IO) {
+        try {
+            val parsed = LegadoSource.fromJsonArray(json).filter { it.isValid }
+            if (parsed.isEmpty()) {
+                val single = LegadoSource.fromJson(json)
+                if (single != null && single.isValid) {
+                    addSource(single)
+                    return@withContext 1
+                }
+                return@withContext 0
+            }
+            addSources(parsed)
+            parsed.size
+        } catch (e: Exception) {
+            Log.e(TAG, "导入书源JSON异常: ${e.message}")
+            0
+        }
+    }
+
     // ==================== WDTS 源管理 ====================
 
     /** 获取启用的 WDTS 源 */

@@ -551,16 +551,16 @@ object WdtsSourceClient {
         val pkg = packageName.lowercase()
         return when {
             // ===== WDTS 专用源 =====
-            // sources_by_shun: 包含15+个听书网站
+            // sources_by_shun: 包含15+个听书网站。实际搜索通过 mapByEntryPackageMulti 获取全部站点
             pkg.contains("sources_by_shun") || pkg.contains("shun") -> {
-                // 返回主站点配置; 实际搜索时通过 mapByEntryPackageMulti 获取全部站点
+                // 返回 ting15 作为主站点（6yueting 已不再是听书站）
                 WdtsExtractedRule(
                     siteName = "[shun] 听书源合集",
-                    searchUrl = "https://m.6yueting.com/search/index/search?content={keyword}",
-                    bookListCss = "ul > li",
-                    nameCss = ".text > .name",
-                    authorCss = ".text > div > .broadcaster",
-                    detailCss = ".text > .name",
+                    searchUrl = "https://www.ting15.com/?s=ting-search-wd-{keyword}",
+                    bookListCss = ".category-list .info",
+                    nameCss = "h4 a@text",
+                    authorCss = "@text",
+                    detailCss = "h4 a@href",
                     userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15"
                 )
             }
@@ -654,68 +654,46 @@ object WdtsSourceClient {
         val pkg = packageName.lowercase()
 
         if (pkg.contains("sources_by_shun") || pkg.contains("shun")) {
-            // 从 sources_by_shun.jar 的 DEX 中提取的 15+ 个真实听书站点
+            // 从 sources_by_shun.jar 的 DEX 提取的真实听书站点。
+            // 已移除无法访问或已变质的站点 (6yueting→赌球站, tingshu168→拒连, 70ts→超时, 22ting/qmtsw→反爬)
+            val iphoneUA = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15"
             return listOf(
-                // 1. 6yueting - 六月听书
+                // 1. ting15 - 有听网 ✅ 已验证可用
                 WdtsExtractedRule(
-                    siteName = "六月听书", searchUrl = "http://m.6yueting.com/search/index/search?content={keyword}",
-                    bookListCss = "ul > li", nameCss = ".text > .name",
-                    authorCss = ".text > div > .broadcaster", detailCss = ".text > .name",
-                    userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15"
+                    siteName = "有听网",
+                    searchUrl = "https://www.ting15.com/?s=ting-search-wd-{keyword}",
+                    bookListCss = ".category-list .info",
+                    nameCss = "h4 a@text",
+                    authorCss = "@text",
+                    detailCss = "h4 a@href",
+                    userAgent = iphoneUA
                 ),
-                // 2. tingshu168 - 听书168
+                // 2. nianyin - 念音听书 ✅ 已验证可用
                 WdtsExtractedRule(
-                    siteName = "听书168", searchUrl = "http://www.tingshu168.com/search/index/search?content={keyword}",
-                    bookListCss = ".clist > li", nameCss = "a@text",
-                    authorCss = "span@text", detailCss = "a@href",
-                    userAgent = "Mozilla/5.0"
+                    siteName = "念音听书",
+                    searchUrl = "https://www.nianyin.com/?s=ting-search-wd-{keyword}",
+                    bookListCss = ".category-list .info",
+                    nameCss = "h4 a@text",
+                    authorCss = "@text",
+                    detailCss = "h4 a@href",
+                    userAgent = iphoneUA
                 ),
-                // 3. ting15 - 有听网
+                // 3. Ting55 - 听书网 (移动版, Android 端可能可达)
                 WdtsExtractedRule(
-                    siteName = "有听网", searchUrl = "https://www.ting15.com/?s=ting-search-wd-{keyword}",
-                    bookListCss = ".box-list-item-text", nameCss = ".box-list-item-text-title > a@text",
-                    authorCss = ".box-list-item-text-autspeaker@text", detailCss = ".box-list-item-text-title > a@href",
-                    userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15"
-                ),
-                // 4. 70ts - 麒麟听书
-                WdtsExtractedRule(
-                    siteName = "麒麟听书", searchUrl = "https://www.70ts.com/so/search.html?searchtype=name&searchword={keyword}",
-                    bookListCss = "li > .clearfix > section", nameCss = ".title > a@text",
-                    authorCss = ".text > .desc@text", detailCss = ".title > a@href",
-                    userAgent = "Mozilla/5.0"
-                ),
-                // 5. Ting55 - 听书网
-                WdtsExtractedRule(
-                    siteName = "听书网55", searchUrl = "https://m.ting55.com/search.html?keyword={keyword}",
-                    bookListCss = "div.list-works ul li", nameCss = "a@text",
-                    authorCss = "p.author@text", detailCss = "a@href",
-                    userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15"
-                ),
-                // 6. itingshu - 爱听书
-                WdtsExtractedRule(
-                    siteName = "爱听书", searchUrl = "https://www.itingshu.net/novelsearch/search/result.html",
-                    bookListCss = ".play-list > ul > li", nameCss = "a@text",
+                    siteName = "听书网(m)",
+                    searchUrl = "https://m.ting55.com/search.html?keyword={keyword}",
+                    bookListCss = "div.list-works ul li",
+                    nameCss = "a@text",
+                    authorCss = "p.author@text",
                     detailCss = "a@href",
-                    userAgent = "Mozilla/5.0"
+                    userAgent = iphoneUA
                 ),
-                // 7. nianyin - 念音听书
+                // 4. itingshu - 爱听书 (POST-based search)
                 WdtsExtractedRule(
-                    siteName = "念音听书", searchUrl = "https://www.nianyin.com/?s=ting-search-wd-{keyword}",
-                    bookListCss = ".box-list-item-text", nameCss = ".box-list-item-text-title > a@text",
-                    detailCss = ".box-list-item-text-title > a@href",
-                    userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15"
-                ),
-                // 8. 22ting
-                WdtsExtractedRule(
-                    siteName = "22听书", searchUrl = "https://22ting.com/search.php?searchword={keyword}",
-                    bookListCss = "ul > li", nameCss = "a@text",
-                    detailCss = "a@href",
-                    userAgent = "Mozilla/5.0"
-                ),
-                // 9. qmtsw - 全民听书网
-                WdtsExtractedRule(
-                    siteName = "全民听书", searchUrl = "https://www.qmtsw.com/search.php?searchword={keyword}",
-                    bookListCss = ".list-works ul li", nameCss = "a@text",
+                    siteName = "爱听书",
+                    searchUrl = "https://www.itingshu.net/novelsearch/search/result.html",
+                    bookListCss = ".play-list > ul > li",
+                    nameCss = "a@text",
                     detailCss = "a@href",
                     userAgent = "Mozilla/5.0"
                 ),
@@ -860,9 +838,11 @@ object WdtsSourceClient {
                     }
 
                     // 作者
-                    val author = if (rule.authorCss.isNotBlank()) {
+                    val rawAuthor = if (rule.authorCss.isNotBlank()) {
                         selectByLegadoCss(item, rule.authorCss)
-                    } else "未知"
+                    } else ""
+                    // 清洗作者文本：去除书名前缀（常见于 ting15/nianyin 格式 "书名类别：..."）
+                    val author = cleanAuthorText(rawAuthor, title)
 
                     // 详情链接
                     val detailUrl = if (rule.detailCss.isNotBlank()) {
@@ -1004,6 +984,35 @@ object WdtsSourceClient {
         }
     }
 
+    // ==================== 作者文本清洗 ====================
+
+    /**
+     * 清洗作者文本，去除嵌入的书名前缀
+     * ting15/nianyin 的 .info 文本格式: "书名类别：xxx 作者：xxx 播音：xxx 时间：xxx"
+     */
+    private fun cleanAuthorText(raw: String, title: String): String {
+        if (raw.isBlank()) return ""
+        var cleaned = raw.trim()
+        // 如果原始文本以书名开头，移除书名部分
+        if (title.isNotBlank() && cleaned.startsWith(title)) {
+            cleaned = cleaned.removePrefix(title).trim().trimStart('，', '。', '、', ' ', '\u00A0')
+        }
+        // 如果仍为空，尝试提取"作者："后面的部分
+        if (cleaned.isBlank() || cleaned == raw.trim()) {
+            val authorMatch = Regex("作者[:：]?\\s*(\\S+)").find(cleaned)
+            if (authorMatch != null) {
+                val found = authorMatch.groupValues[1].take(20)
+                if (found.isNotBlank() && found.length >= 2) return found
+            }
+            val bzMatch = Regex("播音[:：]?\\s*(\\S+)").find(cleaned)
+            if (bzMatch != null) {
+                val found = bzMatch.groupValues[1].take(20)
+                if (found.isNotBlank() && found.length >= 2) return "$found(播音)"
+            }
+        }
+        return cleaned.take(50).ifBlank { "" }
+    }
+
     // ==================== Legado CSS 格式解析 ====================
 
     /**
@@ -1020,8 +1029,8 @@ object WdtsSourceClient {
     private fun parseLegadoCss(raw: String): Pair<String, String> {
         // 匹配最后一个 @xxx 后缀
         val lastAt = raw.lastIndexOf('@')
-        if (lastAt > 0 && lastAt < raw.length - 1) {
-            val css = raw.substring(0, lastAt).trim()
+        if (lastAt >= 0 && lastAt < raw.length - 1) {
+            val css = if (lastAt > 0) raw.substring(0, lastAt).trim() else ""
             val attr = raw.substring(lastAt + 1).trim()
             // @后不能是空格或特殊字符（排除像 @media 的误判）
             if (attr.matches(Regex("^[a-zA-Z][a-zA-Z0-9_-]*$")) && !attr.contains(" ")) {
@@ -1030,6 +1039,7 @@ object WdtsSourceClient {
         }
         return Pair(raw, "text")
     }
+
 
     /**
      * 使用 Legado 格式选择器在元素上查找文本/属性值
